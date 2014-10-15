@@ -18,6 +18,7 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdlib.h string.h sys
 # Checks for typedefs, structures, and compiler characteristics.
 
 # Checks for library functions.
+AC_CHECK_LIB(hiredis, redisAsyncConnect)
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile])

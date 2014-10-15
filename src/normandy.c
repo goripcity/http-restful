@@ -35,8 +35,21 @@
 
 #include "normandy.h"
 
+
 int main(int argc, char **argv)
 {
-    log_debug("let's start %s\n", "now");
 
+    if (log_init()){
+        printf("Init log failed ...\n");
+        return -1;
+    }
+
+    log_debug("Lanching server ...");
+
+    load_config();
+
+    if (server_start()){
+        log_error("Server start failed");
+        return -1;
+    }
 }

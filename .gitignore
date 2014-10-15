@@ -1,3 +1,4 @@
+#autotools files
 .deps/
 AUTHORS
 COPYING
@@ -19,4 +20,8 @@ missing
 src/.deps/
 src/Makefile
 src/Makefile.in
+
+#make files
+src/normandy
+*.o
 
