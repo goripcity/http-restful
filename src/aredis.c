@@ -36,29 +36,69 @@
 #include "aredis.h"
 
 
-void test()
+
+void redis_eventread(epoll_struct *event_loop, int fd, void *data)
 {
-    unsigned int j;
-    redisContext *c; 
-    redisReply *reply;
-    const char *hostname = "127.0.0.1";
-    int port = 6379;
+    client *c = (client *)data;
+    redisAsyncHandleRead(c->context);
+}
 
-    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
-    c = redisConnectWithTimeout(hostname, port, timeout);
-    if (c == NULL || c->err) {
-        if (c) {
-            printf("Connection error: %s\n", c->errstr);
-            redisFree(c);
-        } else {
-            printf("Connection error: can't allocate redis context\n");
-        }
-        exit(1);
-    }   
 
-    /* PING server */
-    reply = redisCommand(c,"PING");
-    printf("PING: %s\n", reply->str);
-    freeReplyObject(reply);
+void redis_eventwrite(epoll_struct *event_loop, int fd, void *data)
+{
+    client *c = (client *)data;
+    redisAsyncHandleWrite(c->context);
+}
 
+
+static void redis_addread(void *data)
+{
+    client *c = (client *)data;
+    epoll_add_event(c->event_loop, c->rfd, EV_READABLE, redis_eventread, data);
+}
+
+
+static void redis_delread(void *data)
+{
+    client *c = (client *)data;
+    epoll_del_event(c->event_loop, c->rfd, EV_READABLE);
+}
+
+
+static void redis_addwrite(void *data)
+{
+    client *c = (client *)data;
+    epoll_add_event(c->event_loop, c->rfd, EV_WRITABLE, redis_eventwrite, data);
+}
+
+
+static void redis_delwrite(void *data)
+{
+    client *c = (client *)data;
+    epoll_del_event(c->event_loop, c->rfd, EV_WRITABLE);
+}
+
+
+
+static void redis_cleanup(void *data)
+{
+    client *c = (client *)data;
+    redis_delread(data);
+    redis_delwrite(data);
+}
+
+
+void redis_attach(client *client, redisAsyncContext *ac)
+{
+    redisContext *c = &(ac->c);
+    client->rfd = c->fd;    
+
+    ac->ev.addRead = redis_addread;
+    ac->ev.delRead = redis_delread;
+    ac->ev.addWrite = redis_addwrite;
+    ac->ev.delWrite = redis_delwrite;
+    ac->ev.cleanup = redis_cleanup;
+    ac->ev.data = client;
+
+    return;
 }

@@ -2,7 +2,10 @@
 #define __AREDIS_H
 
 #include <hiredis/hiredis.h>
+#include <hiredis/async.h>
 
-void test();
+#include "network.h"
+
+void redis_attach(client *client, redisAsyncContext *ac);
 
 #endif /* _AREDIS_H */
