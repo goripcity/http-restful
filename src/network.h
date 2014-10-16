@@ -43,5 +43,6 @@ typedef struct client_s {
 int server_start();
 int epoll_add_event(epoll_struct *event_loop, int fd, int mask, callback *cb, void *data);
 void epoll_del_event(epoll_struct *event_loop, int fd, int mask);
+void reply_callback(epoll_struct *event_loop, int fd, void *data);
 
 #endif /* _NETWORK_H */

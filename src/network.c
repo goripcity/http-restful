@@ -38,18 +38,25 @@
 #include "network.h"
 #include "config.h"
 #include "aredis.h"
+#include "logic.h"
 
 
 #define MAX_EVENTS 1000
 #define USE_LINGER 1
 
+#define RECVBUF 1024
+#define SENDBUF 8092
+
 
 void client_callback(epoll_struct *event_loop, int fd, void *data);
+
 
 void redis_connected(const redisAsyncContext *c, int status) {
     client *client = c->ev.data;
     if (status != REDIS_OK){
-        //TODO error        
+        client->context = NULL;
+        log_error("Redis connect error");
+        epoll_add_event(client->event_loop, client->fd, EV_READABLE, client_callback, client);
         return;
     }
 
@@ -68,6 +75,8 @@ client * client_new(epoll_struct *ev, int fd)
     c->fd = fd;
     c->event_loop = ev;
     c->context = redisAsyncConnect(g_config.rip, g_config.rport);
+    c->sdata = cstrbuf(SENDBUF);
+    c->recvdata = cstrbuf(RECVBUF);
 
     redis_attach(c, c->context);
 
@@ -78,7 +87,12 @@ client * client_new(epoll_struct *ev, int fd)
 
 void client_free(client *c)
 {
-    //TODO
+    if (c->sdata) cstrfree(c->sdata);
+    if (c->recvdata) cstrfree(c->recvdata);
+    if (c->context) redisAsyncDisconnect(c->context);
+
+    free(c);
+    
     return;
 }
 
@@ -295,6 +309,7 @@ void epoll_clean(epoll_struct *event_loop, int fd, int linger)
 
     fe->mask = EV_NONE;
     if (fe->data) client_free(fe->data);
+    fe->data = NULL;
 
     epoll_ctl(event_loop->epfd, EPOLL_CTL_DEL, fd, &ee);
 
@@ -304,15 +319,15 @@ void epoll_clean(epoll_struct *event_loop, int fd, int linger)
 }
 
 
-/*
+
 
 void reply_callback(epoll_struct *event_loop, int fd, void *data)
 {
     int size;
-    client_data *cdata = (client_data *)data;
-    int left = CSTR_LEN(cdata->sdata) - cdata->pos;
+    client *c = (client *)data;
+    int left = CSTR_LEN(c->sdata) - c->send_pos;
 
-    size = write(fd, cdata->sdata + cdata->pos, left);
+    size = write(fd, c->sdata + c->send_pos, left);
     if (size == -1){
         if (errno == EAGAIN){
             size = 0;       
@@ -324,40 +339,15 @@ void reply_callback(epoll_struct *event_loop, int fd, void *data)
     }
 
     if (size == left){
+        cstrclear(c->sdata);
         epoll_del_event(event_loop, fd, EV_WRITABLE);
     }
     else{
-        sdata->pos += size;
+        c->send_pos += size;
     }
      
 }
-*/
 
-
-void getCallback(redisAsyncContext *c, void *r, void *privdata) {
-    redisReply *reply = r;
-    if (reply == NULL) return;
-    log_debug("%s", reply->str);
-}
-
-
-
-
-void packet_parse(client *c, cstr data)
-{
-    //parsing packet
-    //...
-
-    redisAsyncCommand(c->context, getCallback, c, "GET key");  
-
-
-    //epoll_add_event(event_loop, fd, EV_WRITABLE, reply_callback, NULL);
-    
-
-
-    return;
-    
-}
 
 
 void client_callback(epoll_struct *event_loop, int fd, void *data)
@@ -366,9 +356,6 @@ void client_callback(epoll_struct *event_loop, int fd, void *data)
     int n, result;
     
     client *c = (client *)data;
-    if (c->recvdata == NULL){
-        c->recvdata = cstrbuf(1024);
-    }
 
     n = read(fd, buf, BUFSIZ);
     buf[n] = '\0';

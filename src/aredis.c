@@ -82,7 +82,7 @@ static void redis_delwrite(void *data)
 
 static void redis_cleanup(void *data)
 {
-    client *c = (client *)data;
+    log_debug("redis clean");
     redis_delread(data);
     redis_delwrite(data);
 }
