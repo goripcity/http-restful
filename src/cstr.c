@@ -78,7 +78,7 @@ cstr cstrexpand(cstr str, int len)
 
 
 void cstrupdlen(cstr str, int len)
-/* buf长度增加len时使用，buf为字符串时len可使用0 */
+/* 使用read或者memset增加了buf长度len时使用，buf为字符串时len可使用0 */
 {
 	cstr_hdr *hdr = CSTR_HDR(str);
 
@@ -99,6 +99,43 @@ void cstrclear(cstr str)
 	hdr->free += hdr->len;
 	hdr->len = 0;
 	hdr->buf[0] = '\0';
+}
+
+
+void cstrcut_head(cstr str, int len)
+/* 切割字符串头部 */
+{
+	cstr_hdr *hdr = CSTR_HDR(str);
+    if (hdr->len <= len) {
+	    hdr->free += hdr->len;
+    	hdr->len = 0;
+	    hdr->buf[0] = '\0';
+        return;
+    }
+
+    memmove(str, str+len, (hdr->len-len));
+    
+    hdr->free += len;
+    hdr->len -= len;
+    hdr->buf[hdr->len] = 0;
+    
+}
+
+
+void cstrcut_tail(cstr str, int len)
+{
+    cstr_hdr *hdr = CSTR_HDR(str);
+    if (hdr->len <= len) {
+	    hdr->free += hdr->len;
+    	hdr->len = 0;
+	    hdr->buf[0] = '\0';
+        return;
+    }     
+
+    hdr->free += len;
+    hdr->len -= len;
+    hdr->buf[hdr->len] = 0;
+    
 }
 
 

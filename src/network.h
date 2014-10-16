@@ -11,6 +11,9 @@
 #define EV_READABLE 1
 #define EV_WRITABLE 2
 
+#define RECVBUF 1024
+#define SENDBUF 8092
+
 typedef struct epoll_strcut_s epoll_struct;
 typedef void callback(epoll_struct *event_loop, int fd, void *data);
 

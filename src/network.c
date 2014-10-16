@@ -44,8 +44,6 @@
 #define MAX_EVENTS 1000
 #define USE_LINGER 1
 
-#define RECVBUF 1024
-#define SENDBUF 8092
 
 
 void client_callback(epoll_struct *event_loop, int fd, void *data);
@@ -75,8 +73,8 @@ client * client_new(epoll_struct *ev, int fd)
     c->fd = fd;
     c->event_loop = ev;
     c->context = redisAsyncConnect(g_config.rip, g_config.rport);
-    c->sdata = cstrbuf(SENDBUF);
     c->recvdata = cstrbuf(RECVBUF);
+    c->sdata = cstrbuf(SENDBUF);
 
     redis_attach(c, c->context);
 
@@ -89,7 +87,10 @@ void client_free(client *c)
 {
     if (c->sdata) cstrfree(c->sdata);
     if (c->recvdata) cstrfree(c->recvdata);
-    if (c->context) redisAsyncDisconnect(c->context);
+    if (c->context) {
+        redisAsyncDisconnect(c->context);
+        log_debug("free c->context");
+    }
 
     free(c);
     
@@ -340,6 +341,7 @@ void reply_callback(epoll_struct *event_loop, int fd, void *data)
 
     if (size == left){
         cstrclear(c->sdata);
+        c->send_pos = 0;
         epoll_del_event(event_loop, fd, EV_WRITABLE);
     }
     else{
@@ -352,33 +354,40 @@ void reply_callback(epoll_struct *event_loop, int fd, void *data)
 
 void client_callback(epoll_struct *event_loop, int fd, void *data)
 {
-    char buf[BUFSIZ];
-    int n, result;
+    int n;
     
     client *c = (client *)data;
-
-    n = read(fd, buf, BUFSIZ);
-    buf[n] = '\0';
+    int readbuf = RECVBUF/2; 
+    if (CSTR_FREE(c->recvdata) < readbuf){
+        c->recvdata = cstrexpand(c->recvdata, readbuf);
+    }
+        
+    n = read(fd, CSTR_FREEBUF(c->recvdata), CSTR_FREE(c->recvdata));
+    (CSTR_FREEBUF(c->recvdata))[n] = '\0';
+    cstrupdlen(c->recvdata, n);
 
     if (n == -1) {
         if (errno == EAGAIN){
             n = 0;
         }
         else{
-            log_debug("Read error %s, closed", strerror(errno));
+            log_debug("Read error %s, closed fd = %d", strerror(errno), c->fd);
             epoll_clean(event_loop, fd, USE_LINGER);
         }
         return;
     }
     else if (n == 0){
-        log_debug("Connect closed");
+        log_debug("Connect closed fd = %d", c->fd);
         epoll_clean(event_loop, fd, 0);
         return;
     }
 
-    cstrcat_len(c->recvdata, buf, n);
+    if (packet_parse(c, c->recvdata)){
+        log_debug("Error data %s, closed fd = %d", c->recvdata, c->fd);
+        epoll_clean(event_loop, fd, USE_LINGER);
+        return;
+    }
 
-    packet_parse(c, c->recvdata);
 
 }
 

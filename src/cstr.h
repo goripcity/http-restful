@@ -20,6 +20,8 @@ cstr cstrbuf(int len);
 cstr cstrexpand(cstr str, int len);
 void cstrupdlen(cstr str, int len);
 void cstrclear(cstr str);
+void cstrcut_head(cstr cstr, int len);
+void cstrcut_tail(cstr cstr, int len);
 cstr cstrcat(cstr dest, const char *src);
 cstr cstrcat_len(cstr dest, const char *src, int len);
 
