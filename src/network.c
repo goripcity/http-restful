@@ -340,6 +340,7 @@ void reply_callback(epoll_struct *event_loop, int fd, void *data)
     }
 
     if (size == left){
+        log_debug("Server response: %s", c->sdata);
         cstrclear(c->sdata);
         c->send_pos = 0;
         epoll_del_event(event_loop, fd, EV_WRITABLE);
@@ -431,7 +432,7 @@ int server_start()
     signal(SIGPIPE, SIG_IGN);
 
 
-    listen_sock = tcp_listen(g_config.ip, g_config.port);
+    if ((listen_sock = tcp_listen(g_config.ip, g_config.port)) == -1) return -1;
 
     if (epoll_struct_create(&event_loop)) return -1;
 

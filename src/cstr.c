@@ -172,27 +172,24 @@ cstr cstrcatvprintf(cstr dest, const char *fmt, va_list ap)
 {
 	va_list cpy;
     char *buf; 
-    size_t buflen = 16; 
+    size_t buflen;
 
     while(1) {
-        buf = malloc(buflen);
-        RTIFNULL(buf);
+        buf = CSTR_FREEBUF(dest);
+        buflen = CSTR_FREE(dest);
         buf[buflen-2] = '\0';
 
         va_copy(cpy,ap);
         vsnprintf(buf, buflen, fmt, cpy);
 
         if (buf[buflen-2] != '\0') {
-            free(buf);
-            buflen *= 2;
+            cstrexpand(dest, buflen << 1); 
             continue;
         }   
         break;
     }
 
-    dest = cstrcat(dest, buf);
-	free(buf);
-
+    cstrupdlen(dest, 0);
 	return dest;
 
 }
